@@ -1,0 +1,123 @@
+{
+  "info": {
+    "name": "XiaoZhi 语音问答 API",
+    "description": "REST API，支持文本/语音/图片三模问答。部署地址: http://localhost:8080",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "系统",
+      "item": [
+        {
+          "name": "健康检查",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "文本问答",
+      "item": [
+        {
+          "name": "流式 (SSE 逐字)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/text", "host": ["{{base_url}}"], "path": ["ask", "text"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"text\": \"你好\", \"stream\": true}" }
+          }
+        },
+        {
+          "name": "非流式 + TTS",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/text", "host": ["{{base_url}}"], "path": ["ask", "text"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"text\": \"早安\", \"stream\": false, \"voice_output\": true}" }
+          }
+        },
+        {
+          "name": "多轮对话",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/text", "host": ["{{base_url}}"], "path": ["ask", "text"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"text\": \"继续聊\", \"session_id\": \"上次返回的session_id\"}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "语音问答",
+      "item": [
+        {
+          "name": "上传 WAV 问答",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/voice", "host": ["{{base_url}}"], "path": ["ask", "voice"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "audio", "type": "file", "src": "question.wav", "description": "WAV (16kHz 单声道)" },
+                { "key": "voice_output", "value": "false", "type": "text" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "流式语音问答",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/voice/stream", "host": ["{{base_url}}"], "path": ["ask", "voice", "stream"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "audio", "type": "file", "src": "question.wav" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "图片问答",
+      "item": [
+        {
+          "name": "上传图片识别",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/vision", "host": ["{{base_url}}"], "path": ["ask", "vision"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "photo.png" },
+                { "key": "question", "value": "描述这张图片", "type": "text" },
+                { "key": "voice_output", "value": "false", "type": "text" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "图片识别 + TTS",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/ask/vision", "host": ["{{base_url}}"], "path": ["ask", "vision"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "photo.png" },
+                { "key": "question", "value": "描述这张图片", "type": "text" },
+                { "key": "voice_output", "value": "true", "type": "text" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# 敏感配置（真实 API key）
+data/.config.yaml
+data/.agent-base-prompt.txt
+data/.memory.yaml
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# 临时文件
+tmp/
+*.log
+
+# 模型文件（太大）
+models/
