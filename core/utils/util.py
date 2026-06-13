@@ -1,12 +1,8 @@
 import re
 import os
 import json
-import copy
 import wave
-import socket
 import asyncio
-import requests
-import subprocess
 import numpy as np
 import opuslib_next
 from io import BytesIO
@@ -14,93 +10,6 @@ from pydub import AudioSegment
 from typing import Callable, Any
 
 TAG = __name__
-
-
-def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Connect to Google's DNS servers
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception as e:
-        return "127.0.0.1"
-
-
-def is_private_ip(ip_addr):
-    """
-    Check if an IP address is a private IP address (compatible with IPv4 and IPv6).
-
-    @param {string} ip_addr - The IP address to check.
-    @return {bool} True if the IP address is private, False otherwise.
-    """
-    try:
-        # Validate IPv4 or IPv6 address format
-        if not re.match(
-            r"^(\d{1,3}\.){3}\d{1,3}$|^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$", ip_addr
-        ):
-            return False  # Invalid IP address format
-
-        # IPv4 private address ranges
-        if "." in ip_addr:  # IPv4 address
-            ip_parts = list(map(int, ip_addr.split(".")))
-            if ip_parts[0] == 10:
-                return True  # 10.0.0.0/8 range
-            elif ip_parts[0] == 172 and 16 <= ip_parts[1] <= 31:
-                return True  # 172.16.0.0/12 range
-            elif ip_parts[0] == 192 and ip_parts[1] == 168:
-                return True  # 192.168.0.0/16 range
-            elif ip_addr == "127.0.0.1":
-                return True  # Loopback address
-            elif ip_parts[0] == 169 and ip_parts[1] == 254:
-                return True  # Link-local address 169.254.0.0/16
-            else:
-                return False  # Not a private IPv4 address
-        else:  # IPv6 address
-            ip_addr = ip_addr.lower()
-            if ip_addr.startswith("fc00:") or ip_addr.startswith("fd00:"):
-                return True  # Unique Local Addresses (FC00::/7)
-            elif ip_addr == "::1":
-                return True  # Loopback address
-            elif ip_addr.startswith("fe80:"):
-                return True  # Link-local unicast addresses (FE80::/10)
-            else:
-                return False  # Not a private IPv6 address
-
-    except (ValueError, IndexError):
-        return False  # IP address format error or insufficient segments
-
-
-def get_ip_info(ip_addr, logger):
-    try:
-        # 导入全局缓存管理器
-        from core.utils.cache.manager import cache_manager, CacheType
-
-        # 先从缓存获取
-        cached_ip_info = cache_manager.get(CacheType.IP_INFO, ip_addr)
-        if cached_ip_info is not None:
-            return cached_ip_info
-
-        # 缓存未命中，调用API
-        if is_private_ip(ip_addr):
-            ip_addr = ""
-        url = f"https://whois.pconline.com.cn/ipJson.jsp?json=true&ip={ip_addr}"
-        resp = requests.get(url).json()
-        ip_info = {"city": resp.get("city")}
-
-        # 存入缓存
-        cache_manager.set(CacheType.IP_INFO, ip_addr, ip_info)
-        return ip_info
-    except Exception as e:
-        logger.bind(tag=TAG).error(f"Error getting client ip info: {e}")
-        return {}
-
-
-def write_json_file(file_path, data):
-    """将数据写入 JSON 文件"""
-    with open(file_path, "w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
 
 
 def remove_punctuation_and_length(text):
@@ -133,87 +42,6 @@ def check_model_key(modelType, modelKey):
     if "你" in modelKey:
         return f"配置错误: {modelType} 的 API key 未设置,当前值为: {modelKey}"
     return None
-
-
-def parse_string_to_list(value, separator=";"):
-    """
-    将输入值转换为列表
-    Args:
-        value: 输入值，可以是 None、字符串或列表
-        separator: 分隔符，默认为分号
-    Returns:
-        list: 处理后的列表
-    """
-    if value is None or value == "":
-        return []
-    elif isinstance(value, str):
-        return [item.strip() for item in value.split(separator) if item.strip()]
-    elif isinstance(value, list):
-        return value
-    return []
-
-
-def check_ffmpeg_installed() -> bool:
-    """
-    检查当前环境中是否已正确安装并可执行 ffmpeg。
-
-    Returns:
-        bool: 如果 ffmpeg 正常可用，返回 True；否则抛出 ValueError 异常。
-
-    Raises:
-        ValueError: 当检测到 ffmpeg 未安装或依赖缺失时，抛出详细的提示信息。
-    """
-    try:
-        # 尝试执行 ffmpeg 命令
-        result = subprocess.run(
-            ["ffmpeg", "-version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True,  # 非零退出码会触发 CalledProcessError
-        )
-
-        output = (result.stdout + result.stderr).lower()
-        if "ffmpeg version" in output:
-            return True
-
-        # 如果未检测到版本信息，也视为异常情况
-        raise ValueError("未检测到有效的 ffmpeg 版本输出。")
-
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        # 提取错误输出
-        stderr_output = ""
-        if isinstance(e, subprocess.CalledProcessError):
-            stderr_output = (e.stderr or "").strip()
-        else:
-            stderr_output = str(e).strip()
-
-        # 构建基础错误提示
-        error_msg = [
-            "❌ 检测到 ffmpeg 无法正常运行。\n",
-            "建议您：",
-            "1. 确认已正确激活 conda 环境；",
-            "2. 查阅项目安装文档，了解如何在 conda 环境中安装 ffmpeg。\n",
-        ]
-
-        # 🎯 针对具体错误信息提供额外提示
-        if "libiconv.so.2" in stderr_output:
-            error_msg.append("⚠️ 发现缺少依赖库：libiconv.so.2")
-            error_msg.append("解决方法：在当前 conda 环境中执行：")
-            error_msg.append("   conda install -c conda-forge libiconv\n")
-        elif (
-            "no such file or directory" in stderr_output
-            and "ffmpeg" in stderr_output.lower()
-        ):
-            error_msg.append("⚠️ 系统未找到 ffmpeg 可执行文件。")
-            error_msg.append("解决方法：在当前 conda 环境中执行：")
-            error_msg.append("   conda install -c conda-forge ffmpeg\n")
-        else:
-            error_msg.append("错误详情：")
-            error_msg.append(stderr_output or "未知错误。")
-
-        # 抛出详细异常信息
-        raise ValueError("\n".join(error_msg)) from e
 
 
 def extract_json_from_string(input_string):
@@ -420,103 +248,6 @@ def opus_datas_to_wav_bytes(opus_datas, sample_rate=16000, channels=1):
                 del decoder
             except Exception:
                 pass
-
-
-def check_vad_update(before_config, new_config):
-    if (
-        new_config.get("selected_module") is None
-        or new_config["selected_module"].get("VAD") is None
-    ):
-        return False
-    update_vad = False
-    current_vad_module = before_config["selected_module"]["VAD"]
-    new_vad_module = new_config["selected_module"]["VAD"]
-    current_vad_type = (
-        current_vad_module
-        if "type" not in before_config["VAD"][current_vad_module]
-        else before_config["VAD"][current_vad_module]["type"]
-    )
-    new_vad_type = (
-        new_vad_module
-        if "type" not in new_config["VAD"][new_vad_module]
-        else new_config["VAD"][new_vad_module]["type"]
-    )
-    update_vad = current_vad_type != new_vad_type
-    return update_vad
-
-
-def check_asr_update(before_config, new_config):
-    if (
-        new_config.get("selected_module") is None
-        or new_config["selected_module"].get("ASR") is None
-    ):
-        return False
-    update_asr = False
-    current_asr_module = before_config["selected_module"]["ASR"]
-    new_asr_module = new_config["selected_module"]["ASR"]
-
-    # 如果模块名称不同，就需要更新
-    if current_asr_module != new_asr_module:
-        return True
-
-    # 如果模块名称相同，再比较类型
-    current_asr_type = (
-        current_asr_module
-        if "type" not in before_config["ASR"][current_asr_module]
-        else before_config["ASR"][current_asr_module]["type"]
-    )
-    new_asr_type = (
-        new_asr_module
-        if "type" not in new_config["ASR"][new_asr_module]
-        else new_config["ASR"][new_asr_module]["type"]
-    )
-    update_asr = current_asr_type != new_asr_type
-    return update_asr
-
-
-def filter_sensitive_info(config: dict) -> dict:
-    """
-    过滤配置中的敏感信息
-    Args:
-        config: 原始配置字典
-    Returns:
-        过滤后的配置字典
-    """
-    sensitive_keys = [
-        "api_key",
-        "personal_access_token",
-        "access_token",
-        "token",
-        "secret",
-        "access_key_secret",
-        "secret_key",
-    ]
-
-    def _filter_dict(d: dict) -> dict:
-        filtered = {}
-        for k, v in d.items():
-            if any(sensitive in k.lower() for sensitive in sensitive_keys):
-                filtered[k] = "***"
-            elif isinstance(v, dict):
-                filtered[k] = _filter_dict(v)
-            elif isinstance(v, list):
-                filtered[k] = [_filter_dict(i) if isinstance(i, dict) else i for i in v]
-            elif isinstance(v, str):
-                try:
-                    json_data = json.loads(v)
-                    if isinstance(json_data, dict):
-                        filtered[k] = json.dumps(
-                            _filter_dict(json_data), ensure_ascii=False
-                        )
-                    else:
-                        filtered[k] = v
-                except (json.JSONDecodeError, TypeError):
-                    filtered[k] = v
-            else:
-                filtered[k] = v
-        return filtered
-
-    return _filter_dict(copy.deepcopy(config))
 
 
 def get_vision_url(config: dict) -> str:

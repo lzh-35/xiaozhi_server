@@ -1,6 +1,7 @@
 """FastAPI 依赖注入：Provider 单例 & QA Pipeline 工厂"""
 
 from functools import lru_cache
+# LRU = Least Recently Used 完整全称：Least Recently Used Cache 直译：最近最少使用缓存
 
 from config.config_loader import load_config
 from config.logger import setup_logging
@@ -66,21 +67,6 @@ def get_tts():
     return create_tts(tts_type, config["TTS"][tts_name], delete_audio)
 
 
-# ───────────────────── 会话存储 ─────────────────────
-
-# 简单的内存会话存储（生产环境应替换为 Redis）
-_session_store: dict = {}
-
-
-def get_or_create_session(session_id: str = "") -> str:
-    """获取已有会话或创建新会话 ID"""
-    if session_id and session_id in _session_store:
-        return session_id
-    new_id = session_id or str(__import__("uuid").uuid4().hex)
-    _session_store[new_id] = {}
-    return new_id
-
-
 # ───────────────────── Memory 工厂 ─────────────────────
 
 def get_memory():
@@ -106,24 +92,6 @@ def get_memory():
 
 # ───────────────────── Pipeline 工厂 ─────────────────────
 
-@lru_cache(maxsize=1)
-def get_vllm():
-    """获取 VLLM Provider 单例（视觉语言模型）"""
-    from core.utils import vllm as vllm_utils
-
-    config = get_config()
-    vllm_name = config["selected_module"].get("VLLM", "")
-    if not vllm_name:
-        return None
-    try:
-        vllm_type = _get_provider_type(config, "VLLM")
-        logger.bind(tag=TAG).info(f"初始化 VLLM: {vllm_name} (type={vllm_type})")
-        return vllm_utils.create_instance(vllm_type, config["VLLM"][vllm_name])
-    except Exception as e:
-        logger.bind(tag=TAG).warning(f"VLLM 初始化失败: {e}")
-        return None
-
-
 def get_pipeline(session_id: str = "", client_ip: str = "") -> "QAPipeline":
     """创建 QAPipeline 实例（支持多轮对话）
 
@@ -133,8 +101,10 @@ def get_pipeline(session_id: str = "", client_ip: str = "") -> "QAPipeline":
     """
     from core.qa_pipeline import QAPipeline
 
+    import uuid as _uuid
+
     config = get_config()
-    sid = get_or_create_session(session_id)
+    sid = session_id or str(_uuid.uuid4().hex)
 
     intent_name = config["selected_module"].get("Intent", "nointent")
     intent_type = (

@@ -7,7 +7,6 @@
 """
 
 import io
-import json
 import wave
 import uuid
 import asyncio
@@ -334,90 +333,64 @@ class QAPipeline:
 
     def _handle_tool_calls(self, tool_calls_list: list, depth: int) -> str:
         """执行工具调用并递归"""
-        # 分离 direct_answer 和真实工具
-        direct_calls = [tc for tc in tool_calls_list if tc["name"] == "direct_answer"]
-        real_calls = [tc for tc in tool_calls_list if tc["name"] != "direct_answer"]
+        # 写入 assistant(tool_calls) 消息
+        tool_call_msgs = [
+            {
+                "id": tc.get("id", str(uuid.uuid4().hex)),
+                "function": {
+                    "name": tc["name"],
+                    "arguments": tc.get("arguments", "{}"),
+                },
+                "type": "function",
+                "index": i,
+            }
+            for i, tc in enumerate(tool_calls_list)
+        ]
+        self.dialogue.put(Message(role="assistant", tool_calls=tool_call_msgs))
 
-        # direct_answer：直接提取回复文本
-        if direct_calls:
-            for tc in direct_calls:
-                text = self._extract_direct_answer_response(
-                    tc.get("arguments", "{}")
-                )
-                if text:
-                    self.dialogue.put(Message(role="assistant", content=text))
-                    return text
-
-        # 真实工具调用
-        if real_calls:
-            # 写入 assistant(tool_calls) 消息
-            tool_call_msgs = [
-                {
-                    "id": tc.get("id", str(uuid.uuid4().hex)),
-                    "function": {
-                        "name": tc["name"],
-                        "arguments": tc.get("arguments", "{}"),
-                    },
-                    "type": "function",
-                    "index": i,
-                }
-                for i, tc in enumerate(real_calls)
-            ]
-            self.dialogue.put(Message(role="assistant", tool_calls=tool_call_msgs))
-
-            # 执行工具
-            need_llm = False
-            for tc in real_calls:
+        # 执行工具
+        need_llm = False
+        for tc in tool_calls_list:
+            try:
                 try:
-                    try:
-                        loop = asyncio.get_running_loop()
-                        future = asyncio.run_coroutine_threadsafe(
-                            self.tool_handler.handle_llm_function_call(tc), loop
-                        )
-                        result = future.result(timeout=30)
-                    except RuntimeError:
-                        # 没有运行中的事件循环（如线程池），直接同步执行
-                        result = asyncio.run(
-                            self.tool_handler.handle_llm_function_call(tc)
-                        )
-                except Exception as e:
-                    result = ActionResponse(action=Action.ERROR, response=str(e))
-
-                if result is None:
-                    continue
-
-                # 写入 tool 结果
-                self.dialogue.put(
-                    Message(
-                        role="tool",
-                        tool_call_id=tc.get("id", str(uuid.uuid4().hex)),
-                        content=result.result or result.response or "",
+                    loop = asyncio.get_running_loop()
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.tool_handler.handle_llm_function_call(tc), loop
                     )
+                    result = future.result(timeout=30)
+                except RuntimeError:
+                    result = asyncio.run(
+                        self.tool_handler.handle_llm_function_call(tc)
+                    )
+            except Exception as e:
+                result = ActionResponse(action=Action.ERROR, response=str(e))
+
+            if result is None:
+                continue
+
+            self.dialogue.put(
+                Message(
+                    role="tool",
+                    tool_call_id=tc.get("id", str(uuid.uuid4().hex)),
+                    content=result.result or result.response or "",
+                )
+            )
+
+            if result.action == Action.RESPONSE:
+                self.dialogue.put(
+                    Message(role="assistant", content=result.response or result.result)
+                )
+            elif result.action == Action.REQLLM:
+                need_llm = True
+            elif result.action == Action.RECORD:
+                self.dialogue.put(
+                    Message(role="assistant", content=result.response or result.result)
                 )
 
-                if result.action == Action.RESPONSE:
-                    self.dialogue.put(
-                        Message(role="assistant", content=result.response or result.result)
-                    )
-                elif result.action == Action.REQLLM:
-                    need_llm = True
-                elif result.action == Action.RECORD:
-                    self.dialogue.put(
-                        Message(role="assistant", content=result.response or result.result)
-                    )
+        if need_llm:
+            return self._chat_with_tools(None, depth + 1)
 
-            if need_llm:
-                return self._chat_with_tools(None, depth + 1)
-
-            return result.result or result.response or ""
-
-        return "".join(
-            [
-                self._extract_direct_answer_response(tc.get("arguments", "{}"))
-                for tc in tool_calls_list
-                if tc["name"] == "direct_answer"
-            ]
-        ) or ""
+        return result.result or result.response or ""
 
     def _chat_with_tools_stream(self, memory_str: Optional[str], depth: int = 0):
         """带工具调用的流式 LLM 对话 — 先判断工具，再流式输出最终回复"""
@@ -562,14 +535,6 @@ class QAPipeline:
     # ASR / TTS（不变）
     # ------------------------------------------------------------------
 
-    def _build_dialogue(self, user_text: str) -> list:
-        dialogue = Dialogue()
-        prompt = self.config.get("prompt", "")
-        if prompt:
-            dialogue.put(Message(role="system", content=prompt))
-        dialogue.put(Message(role="user", content=user_text))
-        return dialogue.get_llm_dialogue()
-
     async def _speech_to_text(self, audio_bytes: bytes, session_id: str) -> str:
         try:
             pcm_data = _wav_to_pcm_bytes(audio_bytes)
@@ -644,31 +609,6 @@ class QAPipeline:
                 tool_calls_list[idx]["name"] = tc.function.name
             if tc.function.arguments:
                 tool_calls_list[idx]["arguments"] += tc.function.arguments
-
-    @staticmethod
-    def _extract_direct_answer_response(arguments_str: str) -> str:
-        if not arguments_str:
-            return ""
-        try:
-            data = json.loads(arguments_str)
-            if isinstance(data, dict) and "response" in data:
-                return data["response"]
-        except (json.JSONDecodeError, TypeError):
-            pass
-        marker = '"response": "'
-        idx = arguments_str.find(marker)
-        if idx < 0:
-            marker = '"response":"'
-            idx = arguments_str.find(marker)
-        if idx < 0:
-            return ""
-        start = idx + len(marker)
-        raw = arguments_str[start:]
-        if raw.endswith('"}'):
-            raw = raw[:-2]
-        elif raw.endswith('"'):
-            raw = raw[:-1]
-        return raw.replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
 
     async def close(self):
         if self.asr and hasattr(self.asr, "close"):

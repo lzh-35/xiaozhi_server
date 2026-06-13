@@ -47,20 +47,6 @@ class Dialogue:
         else:
             dialogue.append({"role": m.role, "content": m.content})
 
-    def get_llm_dialogue(self) -> List[Dict[str, str]]:
-        # 直接调用get_llm_dialogue_with_memory，传入None作为memory_str
-        # 这样确保说话人功能在所有调用路径下都生效
-        return self.get_llm_dialogue_with_memory(None, None)
-
-    def update_system_message(self, new_content: str):
-        """更新或添加系统消息"""
-        # 查找第一个系统消息
-        system_msg = next((msg for msg in self.dialogue if msg.role == "system"), None)
-        if system_msg:
-            system_msg.content = new_content
-        else:
-            self.put(Message(role="system", content=new_content))
-
     def _ensure_tool_calls_complete(self, messages: List[Message]) -> List[Message]:
         """
         确保所有 tool_calls 都有对应的 tool 响应

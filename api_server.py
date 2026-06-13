@@ -28,8 +28,15 @@ _config_override = os.path.join(_data_dir, ".config.yaml")
 if not os.path.exists(_config_override):
     # 写入最小覆盖配置（全部使用 config.yaml 的默认值）
     with open(_config_override, "w", encoding="utf-8") as f:
-        f.write("# 由 api_server 自动生成 —— 覆盖项为空，全部回退到 config.yaml 默认值\n")
-    print(f"[api_server] 已生成最小配置文件: {_config_override}")
+        f.write("# 由 api_server 自动生成\n")
+    print(f"[api_server] 已生成配置文件: {_config_override}")
+
+# 没有 data/.agent-base-prompt.txt 时从示例文件自动创建
+_prompt_tmpl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", ".agent-base-prompt.txt")
+_prompt_example = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "agent-base-prompt.example.txt")
+if not os.path.exists(_prompt_tmpl) and os.path.exists(_prompt_example):
+    _ = __import__("shutil").copy(_prompt_example, _prompt_tmpl)
+    print(f"[api_server] 已恢复提示词模板: {_prompt_tmpl}")
 
 # ───────────────────── 1. FastAPI 应用 ─────────────────────
 

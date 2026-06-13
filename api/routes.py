@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 import json as json_module
 
 from api.schemas import AskTextRequest, AskResponse, ErrorResponse
-from api.dependencies import get_pipeline, get_vllm, get_tts
+from api.dependencies import get_pipeline, get_tts
 
 router = APIRouter(prefix="/ask", tags=["问答"])
 
