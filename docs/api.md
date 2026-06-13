@@ -73,6 +73,7 @@ Content-Type: multipart/form-data
 |------|------|------|------|
 | audio | file | 是 | WAV 音频文件（16kHz 单声道推荐） |
 | voice_output | boolean | 否 | 是否返回 TTS 语音 |
+| session_id | string | 否 | 会话 ID（空=新会话，已有 ID=继续对话） |
 
 ---
 
@@ -83,7 +84,12 @@ POST /ask/voice/stream
 Content-Type: multipart/form-data
 ```
 
-SSE 事件格式：`asr` → `token`（LLM逐字） → `text_done` → `audio`（TTS逐块） → `done`
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| audio | file | 是 | WAV 音频文件 |
+| session_id | string | 否 | 会话 ID（空=新会话） |
+
+SSE 事件格式：`asr` → `token`（LLM逐字） → `text_done` → `audio`（TTS逐块） → `done`（含 session_id）
 
 ---
 
@@ -98,6 +104,8 @@ Content-Type: multipart/form-data
 |------|------|------|------|
 | image | file | 是 | 图片文件（JPEG/PNG） |
 | question | string | 否 | 关于图片的问题（默认"描述这张图片"） |
+| voice_output | boolean | 否 | 是否返回 TTS 语音 |
+| session_id | string | 否 | 会话 ID（空=新会话） |
 
 ---
 

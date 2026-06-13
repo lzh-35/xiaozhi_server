@@ -75,14 +75,13 @@ async def ask_text(req: AskTextRequest):
 async def ask_voice(
     audio: UploadFile = File(..., description="WAV 音频文件 (16kHz 单声道推荐)"),
     voice_output: bool = Form(False, description="是否返回语音回复"),
+    session_id: str = Form("", description="会话 ID（空=新会话）"),
 ):
     """语音问答"""
-    # 校验文件类型
     if audio.content_type and "audio" not in audio.content_type:
-        # 不做硬拒绝，只做提示——有些客户端可能传 application/octet-stream
         pass
 
-    pipeline = get_pipeline()
+    pipeline = get_pipeline(session_id=session_id)
     try:
         audio_bytes = await audio.read()
         if not audio_bytes:
@@ -126,8 +125,9 @@ async def ask_voice(
 )
 async def ask_voice_stream(
     audio: UploadFile = File(..., description="WAV 音频文件 (16kHz 单声道推荐)"),
+    session_id: str = Form("", description="会话 ID（空=新会话）"),
 ):
-    pipeline = get_pipeline()
+    pipeline = get_pipeline(session_id=session_id)
     try:
         audio_bytes = await audio.read()
         if not audio_bytes:
@@ -160,12 +160,10 @@ async def ask_vision(
     image: UploadFile = File(..., description="图片文件 (JPEG/PNG)"),
     question: str = Form("描述这张图片", description="关于图片的问题"),
     voice_output: bool = Form(False, description="是否返回 TTS 语音"),
+    session_id: str = Form("", description="会话 ID"),
 ):
-    """图片问答"""
-    vllm = get_vllm()
-    if vllm is None:
-        raise HTTPException(status_code=503, detail="VLLM 服务未配置或初始化失败")
-
+    """图片问答（接入 QAPipeline，支持记忆）"""
+    pipeline = get_pipeline(session_id=session_id)
     try:
         image_bytes = await image.read()
         if not image_bytes:
@@ -173,7 +171,7 @@ async def ask_vision(
 
         import base64
         b64 = base64.b64encode(image_bytes).decode("utf-8")
-        text = vllm.response(question, b64)
+        text = pipeline.ask_vision(b64, question)
 
         audio_url = None
         if voice_output and text:
@@ -193,6 +191,7 @@ async def ask_vision(
             message="ok",
             text=text,
             audio_url=audio_url,
+            session_id=pipeline.session_id,
         )
     except HTTPException:
         raise

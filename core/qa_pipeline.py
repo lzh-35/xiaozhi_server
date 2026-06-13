@@ -536,6 +536,29 @@ class QAPipeline:
             self.logger.bind(tag=TAG).warning(f"记忆保存提交失败: {e}")
 
     # ------------------------------------------------------------------
+    # VLLM 视觉问答（接入管道，享受 Memory）
+    # ------------------------------------------------------------------
+
+    def ask_vision(self, image_base64: str, question: str) -> str:
+        """图片问答：VLLM 分析 + 记忆保存"""
+        from core.utils.vllm import create_instance as create_vllm
+
+        vllm_name = self.config["selected_module"].get("VLLM", "")
+        if not vllm_name:
+            return "VLLM 未配置"
+
+        vllm_type = self.config["VLLM"][vllm_name].get("type", "openai")
+        vllm = create_vllm(vllm_type, self.config["VLLM"][vllm_name])
+        text = vllm.response(question, image_base64)
+
+        # 写入对话 + 记忆
+        self.dialogue.put(Message(role="user", content=f"[图片] {question}"))
+        self.dialogue.put(Message(role="assistant", content=text))
+        self._save_memory()
+
+        return text
+
+    # ------------------------------------------------------------------
     # ASR / TTS（不变）
     # ------------------------------------------------------------------
 
