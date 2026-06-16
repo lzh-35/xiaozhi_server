@@ -23,3 +23,12 @@ pydub>=0.25            # 音频格式转换
 cnlunar>=0.2           # 农历计算
 beautifulsoup4>=4.12   # HTML 解析（新闻工具用）
 chardet>=5.0           # 编码检测
+
+# ---- LangChain (RAG 知识库检索) ----
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-chroma>=0.2.0
+langchain-text-splitters>=0.3.0
+chromadb>=0.5.0
+dashscope>=1.20.0       # 阿里 DashScope (text-embedding-v4)
+pypdf>=5.0.0            # PDF 文档解析 (RAG 知识库)

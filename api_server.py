@@ -48,28 +48,41 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import router as ask_router
+from api.routes_crm import router as crm_router
 
 app = FastAPI(
     title="XiaoZhi 语音问答 API",
     description="""
 独立的语音问答 REST API 服务，从 XiaoZhi Server 解耦而来。
+集成 AICRM 用户画像管理 + RAG 知识库检索。
 
 ## 功能
 
-- **文本问答** `POST /ask/text` — 输入文本 → LLM 流式/非流式回复（支持 TTS 语音输出）
+### 问答接口
+- **文本问答** `POST /ask/text` — 输入文本 → LLM 流式/非流式回复，支持 CRM 个性化
 - **语音问答** `POST /ask/voice` — 上传音频 → ASR → LLM → (TTS)
-- **流式语音** `POST /ask/voice/stream` — 上传音频 → SSE 流式：ASR→LLM逐字→TTS逐块
+- **流式语音** `POST /ask/voice/stream` — SSE 流式：ASR→LLM逐字→TTS逐块
 - **图片问答** `POST /ask/vision` — 上传图片 → VLLM 视觉分析
 - **音频下载** `GET /ask/audio/{filename}` — 下载 TTS 语音文件
 
+### CRM 用户画像
+- **查询档案** `GET /crm/users/{user_id}` — 用户画像 + 对话历史
+- **创建用户** `POST /crm/users` — 创建/更新用户信息
+- **知识库状态** `GET /crm/knowledge` — RAG 索引状态
+- **重建索引** `POST /crm/knowledge/reload` — 强制重建知识库向量索引
+
 ## 技术栈
 
-- ASR: FunASR 本地模型 (SenseVoiceSmall)
-- LLM: DeepSeek (ChatGLM 免费备用)
-- TTS: 火山引擎豆包 TTS (EdgeTTS 免费备用)
-- VLLM: 智谱 glm-4v-flash
-- Memory: 本地文件 + LLM 总结 (mem_local_short)
-- Tools: 天气 / 新闻 / 搜索 / 农历
+| 模块 | 引擎 |
+|------|------|
+| ASR | FunASR (SenseVoiceSmall) |
+| LLM | DeepSeek / ChatGLM |
+| TTS | 火山引擎豆包 TTS / EdgeTTS |
+| VLLM | 智谱 glm-4v-flash |
+| Memory | 本地文件 + LLM 叙事总结 |
+| CRM | SQLite + LLM 智能画像提取 |
+| RAG | LangChain + ChromaDB + DashScope text-embedding-v4 |
+| Tools | 天气 / 新闻 / 搜索 / 农历 / 知识库检索 |
 
 ## 配置
 
@@ -89,6 +102,7 @@ app.add_middleware(
 
 # 路由
 app.include_router(ask_router)
+app.include_router(crm_router)
 
 
 # ───────────────────── 1.5 音频文件自动清理 ─────────────────────
@@ -111,6 +125,26 @@ def _cleanup_old_audio():
 
 _cleanup_thread = _threading.Thread(target=_cleanup_old_audio, daemon=True)
 _cleanup_thread.start()
+
+
+# ───────────────────── 1.6 RAG 知识库预加载 ─────────────────────
+
+def _init_rag_on_startup():
+    """启动时预加载 RAG 知识库（同步初始化，避免首次请求阻塞）"""
+    try:
+        from config.config_loader import load_config
+        from core.utils.rag import get_rag_manager
+        config = load_config()
+        rag = get_rag_manager(config)
+        if rag:
+            print(f"[api_server] RAG 知识库已加载，文档块数: {rag.vectorstore._collection.count()}")
+        else:
+            print("[api_server] RAG 未启用（dashscope_api_key 或 knowledge_dir 未配置）")
+    except Exception as e:
+        print(f"[api_server] RAG 初始化延迟（无可用文档或配置缺失）: {e}")
+
+_rag_thread = _threading.Thread(target=_init_rag_on_startup, daemon=True)
+_rag_thread.start()
 
 
 # ───────────────────── 2. 健康检查 ─────────────────────

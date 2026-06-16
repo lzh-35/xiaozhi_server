@@ -29,7 +29,7 @@ os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
 )
 async def ask_text(req: AskTextRequest):
     """纯文本问答（支持 SSE 流式输出）"""
-    pipeline = get_pipeline(session_id=req.session_id)
+    pipeline = get_pipeline(session_id=req.session_id, user_id=req.user_id)
 
     if req.stream:
         async def generate():
@@ -76,12 +76,13 @@ async def ask_voice(
     audio: UploadFile = File(..., description="WAV 音频文件 (16kHz 单声道推荐)"),
     voice_output: bool = Form(False, description="是否返回语音回复"),
     session_id: str = Form("", description="会话 ID（空=新会话）"),
+    user_id: str = Form("", description="用户标识（用于 CRM 用户画像）"),
 ):
     """语音问答"""
     if audio.content_type and "audio" not in audio.content_type:
         pass
 
-    pipeline = get_pipeline(session_id=session_id)
+    pipeline = get_pipeline(session_id=session_id, user_id=user_id)
     try:
         audio_bytes = await audio.read()
         if not audio_bytes:
@@ -126,8 +127,9 @@ async def ask_voice(
 async def ask_voice_stream(
     audio: UploadFile = File(..., description="WAV 音频文件 (16kHz 单声道推荐)"),
     session_id: str = Form("", description="会话 ID（空=新会话）"),
+    user_id: str = Form("", description="用户标识（用于 CRM 用户画像）"),
 ):
-    pipeline = get_pipeline(session_id=session_id)
+    pipeline = get_pipeline(session_id=session_id, user_id=user_id)
     try:
         audio_bytes = await audio.read()
         if not audio_bytes:
@@ -161,9 +163,10 @@ async def ask_vision(
     question: str = Form("描述这张图片", description="关于图片的问题"),
     voice_output: bool = Form(False, description="是否返回 TTS 语音"),
     session_id: str = Form("", description="会话 ID"),
+    user_id: str = Form("", description="用户标识（用于 CRM 用户画像）"),
 ):
     """图片问答（接入 QAPipeline，支持记忆）"""
-    pipeline = get_pipeline(session_id=session_id)
+    pipeline = get_pipeline(session_id=session_id, user_id=user_id)
     try:
         image_bytes = await image.read()
         if not image_bytes:

@@ -90,14 +90,36 @@ def get_memory():
         return None
 
 
+# ───────────────────── CRM 工厂 ─────────────────────
+
+@lru_cache(maxsize=1)
+def get_crm():
+    """获取 CRM Provider 单例（SQLite，进程内共享连接池）"""
+    from core.utils.crm import create_instance as create_crm
+
+    config = get_config()
+    crm_name = config["selected_module"].get("CRM", "")
+    if not crm_name:
+        logger.bind(tag=TAG).info("CRM 未配置，跳过")
+        return None
+    try:
+        crm_type = _get_provider_type(config, "CRM")
+        logger.bind(tag=TAG).info(f"初始化 CRM: {crm_name} (type={crm_type})")
+        return create_crm(crm_type, config)
+    except Exception as e:
+        logger.bind(tag=TAG).warning(f"CRM 初始化失败: {e}")
+        return None
+
+
 # ───────────────────── Pipeline 工厂 ─────────────────────
 
-def get_pipeline(session_id: str = "", client_ip: str = "") -> "QAPipeline":
+def get_pipeline(session_id: str = "", client_ip: str = "", user_id: str = "") -> "QAPipeline":
     """创建 QAPipeline 实例（支持多轮对话）
 
     Args:
         session_id: 会话 ID（传已有 session_id 可继续对话）
         client_ip: 客户端 IP（用于位置感知等动态上下文）
+        user_id: 用户标识（用于 CRM 用户画像）
     """
     from core.qa_pipeline import QAPipeline
 
@@ -120,4 +142,6 @@ def get_pipeline(session_id: str = "", client_ip: str = "") -> "QAPipeline":
         intent_type=intent_type,
         session_id=sid,
         client_ip=client_ip,
+        crm=get_crm(),
+        user_id=user_id,
     )

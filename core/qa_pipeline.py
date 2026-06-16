@@ -38,6 +38,8 @@ class QAPipeline:
         intent_type: str = "nointent",
         session_id: str = "",
         client_ip: str = "",
+        crm=None,
+        user_id: str = "",
     ):
         self.asr = asr
         self.llm = llm
@@ -47,6 +49,8 @@ class QAPipeline:
         self.intent_type = intent_type
         self.session_id = session_id or str(uuid.uuid4().hex)
         self.client_ip = client_ip or "127.0.0.1"
+        self.crm = crm
+        self.user_id = user_id
         self.logger = setup_logging()
 
         # 对话上下文（多轮会话）
@@ -74,14 +78,14 @@ class QAPipeline:
             self._init_memory()
 
     def _build_system_prompt(self) -> str:
-        """使用 PromptManager 构建增强系统提示词，失败时回退到 raw prompt"""
+        """使用 PromptManager 构建增强系统提示词，注入 CRM 用户画像，失败时回退到 raw prompt"""
         base_prompt = self.config.get("prompt", "")
         if not base_prompt:
             return ""
         try:
             from core.utils.prompt_manager import PromptManager
             pm = PromptManager(self.config, self.logger)
-            return pm.build_enhanced_prompt(
+            prompt = pm.build_enhanced_prompt(
                 user_prompt=base_prompt,
                 device_id=self.session_id,
                 client_ip=self.client_ip,
@@ -89,23 +93,181 @@ class QAPipeline:
             )
         except Exception as e:
             self.logger.bind(tag=TAG).debug(f"增强提示词构建失败，使用原始提示词: {e}")
-            return base_prompt
+            prompt = base_prompt
 
-        # 工具处理器（仅 function_call 模式初始化）
-        self.tool_handler: Optional[SimplifiedToolHandler] = None
-        if self.intent_type == "function_call":
-            ctx = PipelineContext(
-                config=config,
+        # 注入 CRM 用户画像
+        user_profile_str = self._get_user_profile()
+        if user_profile_str:
+            prompt += user_profile_str
+
+        return prompt
+
+    def _get_user_profile(self) -> str:
+        """查询 CRM 用户画像并格式化为 prompt 片段"""
+        if not self.crm or not self.user_id:
+            return ""
+        try:
+            profile = self.crm.get_user_profile(self.user_id)
+            if not profile:
+                return ""
+
+            parts = ["\n\n<user_profile>"]
+            if profile.get("name"):
+                parts.append(f"- 姓名: {profile['name']}")
+            tags = profile.get("tags", [])
+            if tags:
+                parts.append(f"- 标签: {', '.join(tags)}")
+
+            profile_data = profile.get("profile", {})
+            if isinstance(profile_data, str):
+                try:
+                    import json
+                    profile_data = json.loads(profile_data)
+                except Exception:
+                    profile_data = {}
+            if profile_data:
+                # 提取关键画像字段
+                if "topic_stats" in profile_data:
+                    topics = profile_data["topic_stats"]
+                    if topics:
+                        top_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)[:3]
+                        parts.append(f"- 高频话题: {', '.join(f'{t}({c}次)' for t, c in top_topics)}")
+                # 其他画像信息
+                for key in ("preferences", "purchased", "concerns"):
+                    if key in profile_data:
+                        parts.append(f"- {key}: {profile_data[key]}")
+
+            parts.append("</user_profile>")
+            parts.append("请根据以上用户画像调整回复风格和内容，做到个性化服务。")
+            return "\n".join(parts)
+        except Exception as e:
+            self.logger.bind(tag=TAG).debug(f"获取用户画像失败: {e}")
+            return ""
+
+    def _save_to_crm(self, query: str, response: str):
+        """保存对话到 CRM 并更新用户画像（闭环）
+
+        1. 确保用户存在（不存在则自动注册）
+        2. 保存对话记录到 SQLite
+        3. 调 LLM 从对话中提取用户关键信息（偏好、购买意向、关注话题等）
+        4. 将提取的结构化信息更新到 CRM 用户画像
+        """
+        if not self.crm or not self.user_id:
+            return
+        try:
+            # 确保用户存在（新用户自动注册）
+            profile = self.crm.get_user_profile(self.user_id)
+            if profile is None:
+                self.crm.create_or_update_user(
+                    user_id=self.user_id, phone=self.user_id
+                )
+
+            # 保存对话记录
+            self.crm.save_conversation(
+                user_id=self.user_id,
                 session_id=self.session_id,
-                dialogue=self.dialogue,
-                logger=self.logger,
-                client_ip=self.client_ip,
+                query=query,
+                response=response,
+                intent=self.intent_type,
             )
-            self.tool_handler = SimplifiedToolHandler(ctx)
 
-        # 初始化记忆模块
-        if self.memory is not None:
-            self._init_memory()
+            # LLM 提取用户画像 delta（后台线程，不阻塞）
+            import threading
+
+            def _extract_and_update():
+                try:
+                    profile_delta = self._extract_profile_delta(query, response)
+                    if profile_delta:
+                        # 合并 topic_stats
+                        from collections import Counter
+                        topics = profile_delta.get("topic_stats", {})
+                        topics[self.intent_type] = topics.get(self.intent_type, 0) + 1
+                        profile_delta["topic_stats"] = topics
+                        profile_delta["last_active_at"] = __import__("time").strftime(
+                            "%Y-%m-%d %H:%M:%S", __import__("time").localtime()
+                        )
+                    self.crm.update_user_from_conversation(
+                        user_id=self.user_id,
+                        query=query,
+                        response=response,
+                        intent=self.intent_type,
+                        profile_delta=profile_delta,
+                    )
+                except Exception as e:
+                    self.logger.bind(tag=TAG).debug(f"LLM 画像提取失败: {e}")
+
+            t = threading.Thread(target=_extract_and_update, daemon=True)
+            t.start()
+        except Exception as e:
+            self.logger.bind(tag=TAG).debug(f"CRM 保存失败: {e}")
+
+    # ── LLM 驱动的用户画像提取 ──
+
+    USER_PROFILE_EXTRACTION_PROMPT = """你是一个用户画像分析师。请从以下对话中提取用户的关键信息，以 JSON 格式返回。
+
+## 提取维度
+1. **identity**: 用户身份信息
+   - name: 用户姓名（如有提及）
+   - role: 角色（如"宝妈""程序员""退休老人"等）
+   - member_level: 会员等级（如有提及普通/银卡/金卡/钻石）
+
+2. **interests**: 关注话题列表
+   - 用户在本轮对话中表现出兴趣的话题
+   - 例如: ["产品保修", "套餐升级", "节能优化"]
+
+3. **intents**: 意图列表
+   - 用户本轮的真实需求
+   - 例如: ["查询保修期", "了解升级政策"]
+
+4. **sentiment**: 情感倾向
+   - positive / neutral / negative
+   - 对应 confidence: 0.0-1.0
+
+5. **facts**: 从对话中提取的事实信息
+   - 键值对形式，例如: {"购买的套餐": "旗舰套餐", "购买时间": "2025年3月"}
+   - 仅提取用户明确提到的信息，不要推测
+
+## 输出格式（必须严格 JSON）
+```json
+{
+  "identity": {"name": "", "role": "", "member_level": ""},
+  "interests": [],
+  "intents": [],
+  "sentiment": {"polarity": "neutral", "confidence": 0.5},
+  "facts": {}
+}
+```
+
+## 规则
+- 仅提取用户侧信息，不提取系统回复中的信息
+- 字段为空时填 "" 或 [] 或 {}
+- 不要编造任何信息
+- 只输出 JSON，不要任何解释文字"""
+
+    def _extract_profile_delta(self, query: str, response: str) -> dict:
+        """调 LLM 从一轮对话中提取用户画像增量"""
+        try:
+            user_msg = f"用户: {query}\n助手: {response}"
+            result = self.llm.response_no_stream(
+                system_prompt=self.USER_PROFILE_EXTRACTION_PROMPT,
+                user_prompt=user_msg,
+                max_tokens=500,
+                temperature=0.1,
+            )
+            # 从 LLM 回复中提取 JSON
+            json_str = result
+            start = json_str.find("{")
+            end = json_str.rfind("}")
+            if start != -1 and end != -1:
+                json_str = json_str[start:end + 1]
+
+            import json as _json
+            delta = _json.loads(json_str)
+            self.logger.bind(tag=TAG).debug(f"用户画像提取: {delta.get('interests', [])}")
+            return delta
+        except Exception as e:
+            self.logger.bind(tag=TAG).debug(f"画像提取解析失败: {e}")
+            return {}
 
     # ------------------------------------------------------------------
     # 公开接口
@@ -148,6 +310,10 @@ class QAPipeline:
 
         # 4. 保存记忆
         self._save_memory()
+
+        # 4.5 保存到 CRM（闭环：对话记录 + 更新用户画像）
+        if full_text:
+            self._save_to_crm(question, full_text)
 
         self.logger.bind(tag=TAG).info(f"LLM 回复: {full_text[:80]}...")
 
@@ -233,6 +399,8 @@ class QAPipeline:
                 self.logger.bind(tag=TAG).warning(f"TTS 流式失败: {e}")
 
         self._save_memory()
+        if full_text:
+            self._save_to_crm(asr_text, full_text)
         yield {"type": "done", "text": full_text, "session_id": self.session_id}
 
     # ------------------------------------------------------------------
@@ -450,15 +618,20 @@ class QAPipeline:
     # ------------------------------------------------------------------
 
     def _init_memory(self):
-        """初始化记忆模块"""
+        """初始化记忆模块 — 优先使用 user_id 作为记忆 key，跨会话保持"""
         try:
+            # 有 user_id 时用 user_id 做记忆 key（跨会话持久化）
+            # 没有 user_id 时回退到 session_id（每次新会话空白记忆）
+            memory_role_id = self.user_id if self.user_id else self.session_id
             self.memory.init_memory(
-                role_id=self.session_id,
+                role_id=memory_role_id,
                 llm=self.llm,
                 summary_memory=self.config.get("summaryMemory", None),
                 save_to_file=True,
             )
-            self.logger.bind(tag=TAG).info("记忆模块初始化成功")
+            self.logger.bind(tag=TAG).info(
+                f"记忆模块初始化成功 (key={memory_role_id})"
+            )
         except Exception as e:
             self.logger.bind(tag=TAG).warning(f"记忆模块初始化失败: {e}")
             self.memory = None
@@ -528,6 +701,8 @@ class QAPipeline:
         self.dialogue.put(Message(role="user", content=f"[图片] {question}"))
         self.dialogue.put(Message(role="assistant", content=text))
         self._save_memory()
+        if text:
+            self._save_to_crm(f"[图片] {question}", text)
 
         return text
 

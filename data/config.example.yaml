@@ -63,6 +63,7 @@ selected_module:
   Memory: mem_local_short   # 记忆：本地文件 + LLM 总结
   Intent: function_call     # 意图识别：LLM 原生函数调用
   VLLM: ChatGLMVLLM         # 视觉模型：智谱 glm-4v-flash
+  CRM: crm_sqlite           # CRM：SQLite 本地存储（留空=禁用）
 
 # ---- 意图识别 ----
 Intent:
@@ -73,11 +74,30 @@ Intent:
       - get_weather
       - get_news_from_newsnow
       - get_lunar
+      - search_knowledge_base
 
 # ---- 记忆 ----
 Memory:
   mem_local_short:
     type: mem_local_short
+
+# ---- CRM（用户画像 & 对话记录） ----
+CRM:
+  crm_sqlite:
+    type: crm_sqlite
+
+crm:
+  db_path: "data/crm.db"
+
+# ---- RAG（知识库检索） ----
+rag:
+  embedding_model: text-embedding-v4       # 阿里 DashScope embedding
+  dashscope_api_key: "你的阿里DashScope API Key"
+  knowledge_dir: "data/knowledge_base"     # 知识库文档目录
+  persist_dir: "data/chroma_db"            # 向量库持久化目录
+  chunk_size: 500                          # 文本分块大小
+  chunk_overlap: 50                        # 分块重叠
+  top_k: 3                                 # 检索返回条数
 
 # ---- ASR ----
 ASR:
