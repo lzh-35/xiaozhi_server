@@ -15,6 +15,7 @@ RAG 知识库管理器 (基于 LangChain)
 
 import os
 import hashlib
+import threading
 from typing import Optional, List
 
 from config.logger import setup_logging
@@ -24,6 +25,7 @@ logger = setup_logging()
 
 # ───────────────────── 全局单例 ─────────────────────
 _rag_manager: Optional["RAGManager"] = None
+_rag_lock = threading.Lock()
 
 
 def get_rag_manager(config: dict = None) -> Optional["RAGManager"]:
@@ -33,7 +35,14 @@ def get_rag_manager(config: dict = None) -> Optional["RAGManager"]:
     后续调用可省略 config 参数（已缓存在单例中）。
     """
     global _rag_manager
-    if _rag_manager is None:
+    if _rag_manager is not None:
+        return _rag_manager
+
+    with _rag_lock:
+        # 双重检查：拿到锁后再确认一次
+        if _rag_manager is not None:
+            return _rag_manager
+
         # 未传 config 时自动加载
         if config is None:
             try:
@@ -159,7 +168,7 @@ class RAGManager:
             UnstructuredMarkdownLoader,
             PyPDFLoader,
         )
-        import glob as _glob
+        import glob
 
         documents = []
 
@@ -190,7 +199,7 @@ class RAGManager:
 
         # 加载 .pdf 文件
         try:
-            pdf_files = _glob.glob(
+            pdf_files = glob.glob(
                 os.path.join(self.knowledge_dir, "**", "*.pdf"), recursive=True
             )
             for pdf_path in pdf_files:
@@ -282,7 +291,7 @@ class RAGManager:
                 try:
                     with open(fpath, "rb") as f:
                         hasher.update(f.read())
-                except Exception:
+                except OSError:
                     pass
         return hasher.hexdigest()
 

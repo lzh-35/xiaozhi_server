@@ -7,9 +7,13 @@
 """
 
 import io
+import json
+import time
 import wave
 import uuid
 import asyncio
+import threading
+from collections import Counter
 from typing import Optional
 
 from config.logger import setup_logging
@@ -121,7 +125,6 @@ class QAPipeline:
             profile_data = profile.get("profile", {})
             if isinstance(profile_data, str):
                 try:
-                    import json
                     profile_data = json.loads(profile_data)
                 except Exception:
                     profile_data = {}
@@ -172,19 +175,17 @@ class QAPipeline:
             )
 
             # LLM 提取用户画像 delta（后台线程，不阻塞）
-            import threading
 
             def _extract_and_update():
                 try:
                     profile_delta = self._extract_profile_delta(query, response)
                     if profile_delta:
                         # 合并 topic_stats
-                        from collections import Counter
                         topics = profile_delta.get("topic_stats", {})
                         topics[self.intent_type] = topics.get(self.intent_type, 0) + 1
                         profile_delta["topic_stats"] = topics
-                        profile_delta["last_active_at"] = __import__("time").strftime(
-                            "%Y-%m-%d %H:%M:%S", __import__("time").localtime()
+                        profile_delta["last_active_at"] = time.strftime(
+                            "%Y-%m-%d %H:%M:%S", time.localtime()
                         )
                     self.crm.update_user_from_conversation(
                         user_id=self.user_id,
@@ -261,8 +262,7 @@ class QAPipeline:
             if start != -1 and end != -1:
                 json_str = json_str[start:end + 1]
 
-            import json as _json
-            delta = _json.loads(json_str)
+            delta = json.loads(json_str)
             self.logger.bind(tag=TAG).debug(f"用户画像提取: {delta.get('interests', [])}")
             return delta
         except Exception as e:
@@ -659,6 +659,8 @@ class QAPipeline:
             dialogue = list(self.dialogue.dialogue)
             session_id = self.session_id
 
+            logger = self.logger
+
             def _save():
                 try:
                     loop = asyncio.new_event_loop()
@@ -666,15 +668,14 @@ class QAPipeline:
                     loop.run_until_complete(
                         memory.save_memory(dialogue, session_id)
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.bind(tag=TAG).debug(f"后台记忆保存失败: {e}")
                 finally:
                     try:
                         loop.close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.bind(tag=TAG).debug(f"关闭事件循环失败: {e}")
 
-            import threading
             t = threading.Thread(target=_save, daemon=True)
             t.start()
             self.logger.bind(tag=TAG).debug("记忆保存已提交（后台线程）")
@@ -710,15 +711,17 @@ class QAPipeline:
     # ASR / TTS（不变）
     # ------------------------------------------------------------------
 
+    # ASR PCM 分帧: 60ms * 16kHz * 2bytes = 1920
+    _ASR_FRAME_SIZE = 1920
+
     async def _speech_to_text(self, audio_bytes: bytes, session_id: str) -> str:
         try:
             pcm_data = _wav_to_pcm_bytes(audio_bytes)
             if not pcm_data:
                 return ""
-            frame_size = 1920
             frames = [
-                pcm_data[i : i + frame_size]
-                for i in range(0, len(pcm_data), frame_size)
+                pcm_data[i : i + QAPipeline._ASR_FRAME_SIZE]
+                for i in range(0, len(pcm_data), QAPipeline._ASR_FRAME_SIZE)
             ]
             if not frames:
                 return ""

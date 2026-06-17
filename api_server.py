@@ -15,6 +15,8 @@ API 文档:
 """
 
 import os
+import time
+import threading
 
 # ───────────────────── 0. 确保运行时目录 ─────────────────────
 
@@ -35,14 +37,13 @@ if not os.path.exists(_config_override):
 _prompt_tmpl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", ".agent-base-prompt.txt")
 _prompt_example = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "agent-base-prompt.example.txt")
 if not os.path.exists(_prompt_tmpl) and os.path.exists(_prompt_example):
+    # __import__("shutil")：懒导入写法，只有走到这个分支时才加载 shutil 模块，节省启动资源；
+    # _ = ...：占位变量，代表 “只执行复制动作，不需要接收返回值”
+    # shell utility 的缩写，直译：Shell 工具集。Python 内置标准库，不用额外 pip 安装，专门做高级文件 / 目录操作
     _ = __import__("shutil").copy(_prompt_example, _prompt_tmpl)
     print(f"[api_server] 已恢复提示词模板: {_prompt_tmpl}")
 
 # ───────────────────── 1. FastAPI 应用 ─────────────────────
-
-import os as _os
-import time as _time
-import threading as _threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,7 +96,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=True,  # 允许携带凭证 (cookies, auth headers)
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -107,23 +108,27 @@ app.include_router(crm_router)
 
 # ───────────────────── 1.5 音频文件自动清理 ─────────────────────
 
+# 音频文件清理间隔和过期时间
+_CLEANUP_INTERVAL = 600      # 清理间隔：10 分钟
+_CLEANUP_MAX_AGE = 3600      # 文件保留时间：1 小时
+
 def _cleanup_old_audio():
     """后台线程：每 10 分钟清理超过 1 小时的 TTS 音频文件"""
-    audio_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "tmp", "api_audio")
+    audio_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp", "api_audio")
     while True:
-        _time.sleep(600)  # 10 分钟
+        time.sleep(_CLEANUP_INTERVAL)
         try:
-            if not _os.path.exists(audio_dir):
+            if not os.path.exists(audio_dir):
                 continue
-            now = _time.time()
-            for fname in _os.listdir(audio_dir):
-                fpath = _os.path.join(audio_dir, fname)
-                if _os.path.isfile(fpath) and (now - _os.path.getmtime(fpath)) > 3600:
-                    _os.remove(fpath)
-        except Exception:
+            now = time.time()
+            for fname in os.listdir(audio_dir):
+                fpath = os.path.join(audio_dir, fname)
+                if os.path.isfile(fpath) and (now - os.path.getmtime(fpath)) > _CLEANUP_MAX_AGE:
+                    os.remove(fpath)
+        except OSError:
             pass
 
-_cleanup_thread = _threading.Thread(target=_cleanup_old_audio, daemon=True)
+_cleanup_thread = threading.Thread(target=_cleanup_old_audio, daemon=True)
 _cleanup_thread.start()
 
 
@@ -143,7 +148,7 @@ def _init_rag_on_startup():
     except Exception as e:
         print(f"[api_server] RAG 初始化延迟（无可用文档或配置缺失）: {e}")
 
-_rag_thread = _threading.Thread(target=_init_rag_on_startup, daemon=True)
+_rag_thread = threading.Thread(target=_init_rag_on_startup, daemon=True)
 _rag_thread.start()
 
 
@@ -185,6 +190,10 @@ async def global_exception_handler(request: Request, exc: Exception):
             detail=str(exc),
         ).model_dump(),
     )
+# 1. 先创建 ErrorResponse 模型实例
+# ErrorResponse(code=500, message="服务器内部错误", detail=str(exc))
+# 2. .model_dump() 把这个模型对象 → 转换成普通字典
+# 3. JSONResponse 接收字典，再转成 HTTP 接口标准 JSON 响应返回给前端
 
 
 # ───────────────────── 5. 启动入口 ─────────────────────
@@ -213,3 +222,8 @@ if __name__ == "__main__":
         reload=True,
         log_level="info",
     )
+
+# 等价于 uvicorn api_server:app --host 0.0.0.0 --port 8080 --reload --log-level info
+# 环境变量取值逻辑：优先读系统环境变量，没有就用代码里写的默认地址 / 端口；
+# reload=True：开发用，生产务必关闭；
+# log_level="info"：标准默认级别，排查 bug 可临时改成 debug

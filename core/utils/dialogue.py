@@ -31,7 +31,7 @@ class Dialogue:
     def put(self, message: Message):
         self.dialogue.append(message)
 
-    def getMessages(self, m, dialogue):
+    def get_messages(self, m, dialogue):
         if m.tool_calls is not None:
             dialogue.append({"role": m.role, "tool_calls": m.tool_calls})
         elif m.role == "tool":
@@ -109,7 +109,7 @@ class Dialogue:
         fewshot_messages = [m for m in non_system_messages if m.is_temporary]
         complete_fewshot = self._ensure_tool_calls_complete(fewshot_messages)
         for m in complete_fewshot:
-            self.getMessages(m, dialogue)
+            self.get_messages(m, dialogue)
 
         # 第三段：动态上下文 system prompt（时间、记忆、说话人等）
         # 保持 system 角色以确保模型权威性，不降级为 user
@@ -142,10 +142,10 @@ class Dialogue:
                                     parts[2].strip() if len(parts) >= 3 else ""
                                 )
                                 dynamic_part += f"\n- {name}：{description}"
-                        except:
+                        except Exception:
                             pass
                     dynamic_part += "\n</speakers_info>"
-            except:
+            except Exception:
                 pass
 
             dialogue.append({"role": "system", "content": dynamic_part})
@@ -154,6 +154,6 @@ class Dialogue:
         actual_messages = [m for m in non_system_messages if not m.is_temporary]
         complete_actual = self._ensure_tool_calls_complete(actual_messages)
         for m in complete_actual:
-            self.getMessages(m, dialogue)
+            self.get_messages(m, dialogue)
 
         return dialogue

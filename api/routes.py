@@ -7,9 +7,9 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-import json as json_module
+import json
 
-from api.schemas import AskTextRequest, AskResponse, ErrorResponse
+from api.schemas import AskTextRequest, AskResponse
 from api.dependencies import get_pipeline, get_tts
 
 router = APIRouter(prefix="/ask", tags=["问答"])
@@ -35,9 +35,9 @@ async def ask_text(req: AskTextRequest):
         async def generate():
             try:
                 for event in pipeline.ask_text_stream(req.text):
-                    yield f"data: {json_module.dumps(event, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             except Exception as e:
-                yield f"data: {json_module.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             generate(),
@@ -137,7 +137,7 @@ async def ask_voice_stream(
 
         async def generate():
             async for event in pipeline.ask_voice_stream(audio_bytes):
-                yield f"data: {json_module.dumps(event, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             generate(),

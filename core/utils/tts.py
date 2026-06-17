@@ -4,32 +4,9 @@ import sys
 import importlib
 
 from config.logger import setup_logging
-from core.utils.textUtils import check_emoji
+from core.utils.text_utils import check_emoji, PUNCTUATION_SET
 
 logger = setup_logging()
-
-# punctuation 标点符号
-punctuation_set = {
-    "，",
-    ",",  # 中文逗号 + 英文逗号
-    "。",
-    ".",  # 中文句号 + 英文句号
-    "！",
-    "!",  # 中文感叹号 + 英文感叹号
-    "“",
-    "”",
-    '"',  # 中文双引号 + 英文引号
-    "：",
-    ":",  # 中文冒号 + 英文冒号
-    "-",
-    "－",  # 英文连字符 + 中文全角横线
-    "、",  # 中文顿号
-    "[",
-    "]",  # 方括号
-    "【",
-    "】",  # 中文方括号
-    "~",  # 波浪号
-}
 
 # *args 将多余位置参数打包成元组 args = ( {"type": "edge", "voice": "...", "output_dir": "tmp/"}, True )
 # **kwargs 接收关键字参数，此处没有，所以 kwargs = {}
@@ -158,7 +135,7 @@ class MarkdownCleaner:
         text = check_emoji(text)
 
         # 检查文本是否全为英文和基本标点符号
-        if text and all((c.isascii() or c.isspace() or c in punctuation_set) for c in text):
+        if text and all((c.isascii() or c.isspace() or c in PUNCTUATION_SET) for c in text):
             # 保留原始空格，直接返回
             return text
 

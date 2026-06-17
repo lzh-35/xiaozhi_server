@@ -1,17 +1,7 @@
 import importlib
-import logging
 import os
 import sys
-import time
-import wave
-import uuid
-from abc import ABC, abstractmethod
-from typing import Optional, Tuple, List
 from core.providers.asr.base import ASRProviderBase
-from config.logger import setup_logging
-
-TAG = __name__
-logger = setup_logging()
 
 def create_instance(class_name: str, *args, **kwargs) -> ASRProviderBase:
     """工厂方法创建ASR实例"""

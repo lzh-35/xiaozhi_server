@@ -55,17 +55,15 @@ def ensure_directories(config):
             if output_dir:
                 dirs_to_create.add(output_dir)
 
-    # 根据selected_module创建模型目录
+    # 根据 selected_module 创建模型目录
     selected_modules = config.get("selected_module", {})
     for module_type in ["ASR", "LLM", "TTS"]:
         selected_provider = selected_modules.get(module_type)
         if not selected_provider:
             continue
-        if config.get(module) is None:
-            continue
-        if config.get(selected_provider) is None:
-            continue
         provider_config = config.get(module_type, {}).get(selected_provider, {})
+        if not provider_config:
+            continue
         output_dir = provider_config.get("output_dir")
         if output_dir:
             full_model_dir = os.path.join(project_dir, output_dir)

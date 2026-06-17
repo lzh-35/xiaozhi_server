@@ -43,11 +43,6 @@ def formatter(record):
 
 
 def setup_logging():
-    try:
-        from config.settings import check_config_file
-        check_config_file()
-    except (ImportError, FileNotFoundError):
-        pass
     """从配置文件中读取日志配置，并设置日志输出格式和级别"""
     config = load_config()
     log_config = config["log"]

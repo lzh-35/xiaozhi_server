@@ -123,10 +123,10 @@ def get_pipeline(session_id: str = "", client_ip: str = "", user_id: str = "") -
     """
     from core.qa_pipeline import QAPipeline
 
-    import uuid as _uuid
+    import uuid
 
     config = get_config()
-    sid = session_id or str(_uuid.uuid4().hex)
+    sid = session_id or str(uuid.uuid4().hex)
 
     intent_name = config["selected_module"].get("Intent", "nointent")
     intent_type = (

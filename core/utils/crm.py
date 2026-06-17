@@ -4,12 +4,9 @@ CRM 工厂方法
 从配置中读取 CRM provider 并实例化。
 """
 
+import importlib
 import os
 import sys
-import importlib
-from config.logger import setup_logging
-
-logger = setup_logging()
 
 
 def create_instance(class_name: str, config: dict):

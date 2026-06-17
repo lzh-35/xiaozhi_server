@@ -11,7 +11,7 @@ import json
 from typing import Dict, Any, List, Optional
 
 from config.logger import setup_logging
-from plugins_func.loadplugins import auto_import_modules
+from plugins_func.load_plugins import auto_import_modules
 from plugins_func.register import (
     all_function_registry,
     Action,

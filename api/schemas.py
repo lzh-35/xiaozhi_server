@@ -1,7 +1,6 @@
 """API 请求/响应数据模型"""
 
 from typing import Optional, List, Dict, Any
-from fastapi import UploadFile
 from pydantic import BaseModel, Field
 
 
@@ -14,11 +13,6 @@ class AskTextRequest(BaseModel):
     voice_output: bool = Field(False, description="是否同时返回语音")
     session_id: str = Field("", description="会话 ID（空=新会话，已有 ID=继续对话）")
     stream: bool = Field(True, description="是否使用 SSE 流式输出（默认开启）")
-
-
-class AskVoiceRequest(BaseModel):
-    """语音问答请求（元数据部分，音频文件通过 multipart 上传）"""
-    voice_output: bool = Field(False, description="是否返回语音回复")
 
 
 # ───────────────────── 响应模型 ─────────────────────

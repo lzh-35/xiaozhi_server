@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Callable, Any
 from abc import ABC, abstractmethod
 from config.logger import setup_logging
-from core.utils import textUtils
+from core.utils import text_utils
 from core.utils.tts import MarkdownCleaner, convert_percentage_to_range
 # enqueue_tts_report, sendAudioMessage → lazy in _audio_play_priority_thread
 # audio_bytes_to_data_stream → lazy in to_tts_stream/to_tts
@@ -507,7 +507,7 @@ class TTSProviderBase(ABC):
 
         if last_punct_pos != -1:
             segment_text_raw = current_text[: last_punct_pos + 1]
-            segment_text = textUtils.get_string_no_punctuation_or_emoji(
+            segment_text = text_utils.get_string_no_punctuation_or_emoji(
                 segment_text_raw
             )
             self.processed_chars += len(segment_text_raw)  # 更新已处理字符位置
@@ -566,7 +566,7 @@ class TTSProviderBase(ABC):
         full_text = "".join(self.tts_text_buff)
         remaining_text = full_text[self.processed_chars :]
         if remaining_text:
-            segment_text = textUtils.get_string_no_punctuation_or_emoji(remaining_text)
+            segment_text = text_utils.get_string_no_punctuation_or_emoji(remaining_text)
             if segment_text:
                 self.to_tts_stream(segment_text, opus_handler=opus_handler)
                 self.processed_chars += len(full_text)
