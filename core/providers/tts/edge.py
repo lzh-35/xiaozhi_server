@@ -1,25 +1,14 @@
-import os
-import uuid
 import edge_tts
-from datetime import datetime
 from core.providers.tts.base import TTSProviderBase
 
 
 class TTSProvider(TTSProviderBase):
     def __init__(self, config, delete_audio_file):
         super().__init__(config, delete_audio_file)
-        # private 私人
         if config.get("private_voice"):
             self.voice = config.get("private_voice")
         else:
             self.voice = config.get("voice")
-        self.audio_file_type = config.get("format", "mp3")
-
-    def generate_filename(self, extension=".mp3"):
-        return os.path.join(
-            self.output_file,
-            f"tts-{datetime.now().date()}@{uuid.uuid4().hex}{extension}",
-        )
 
     async def text_to_speak(self, text, output_file):
         try:

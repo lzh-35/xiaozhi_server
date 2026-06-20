@@ -13,7 +13,6 @@ import wave
 import uuid
 import asyncio
 import threading
-from collections import Counter
 from typing import Optional
 
 from config.logger import setup_logging

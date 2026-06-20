@@ -14,13 +14,6 @@ log:
 # ---- 基础设置 ----
 delete_audio: true          # TTS 完成后删除临时文件
 tts_timeout: 10             # TTS 请求超时(秒)
-tool_call_timeout: 30       # 工具调用超时(秒)
-
-# ---- 上下文源（可选，填入 URL 后 prompt_manager 自动注入） ----
-context_providers:
-  - url: ""
-    headers:
-      Authorization: ""
 
 # ---- 插件配置 ----
 plugins:
