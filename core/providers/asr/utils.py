@@ -45,12 +45,19 @@ def lang_tag_filter(text: str) -> dict | str:
         >>> lang_tag_filter("plain text")
         "plain text"
     """
-    # 提取所有标签（按顺序）
-    tag_pattern = r"<\|([^|]+)\|>"
-    all_tags = re.findall(tag_pattern, text)
+    # 提取所有标签(按顺序)
+    # r raw 原生的 r""：原始字符串，里面的 \ 不会被 Python 转义，正则专用写法
+    # 在正则里是特殊符号，代表 “或”，想要匹配字面竖线必须加反斜杠转义，匹配固定开头 <|
+    # \|>：转义竖线，匹配固定结尾 |>|
+    # [^|]：^ 在中括号里代表取反，匹配任意不是竖线 | 的字符；
+    # +：匹配 1 个及以上，不能是空
+    # [] 是承载「禁止匹配竖线」规则的容器，没有方括号就写不出 “除了 | 以外所有字符” 这个逻辑
+    tag_pattern = r"<\|([^|]+)\|>" # pattern 图案
+    # 扫描全部文本，把所有匹配正则的捕获内容，全部收集到列表返回 re.findall() 提取函数
+    all_tags = re.findall(tag_pattern, text) # 输出：["zh", "SAD", "Speech"]
 
-    # 移除所有 <|...|> 格式的标签，获取纯文本
-    clean_text = re.sub(tag_pattern, "", text).strip()
+    # 移除所有 <|...|> 格式的标签，获取纯文本 re.sub (正则，替换内容，文本) 替换删除函数
+    clean_text = re.sub(tag_pattern, "", text).strip() # 输出：你好
 
     # 如果没有标签，直接返回纯文本
     if not all_tags:
