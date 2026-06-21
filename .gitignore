@@ -1,7 +1,13 @@
-# 敏感配置（真实 API key）
+# 敏感配置
 data/.config.yaml
 data/.agent-base-prompt.txt
 data/.memory.yaml
+
+# 本地数据
+data/crm.db
+data/chroma_db/
+data/knowledge_base/
+data/test_audio.wav
 
 # Python
 __pycache__/
@@ -12,5 +18,11 @@ __pycache__/
 tmp/
 *.log
 
-# 模型文件（太大）
+# 模型文件
 models/
+
+# IDE
+.vscode/
+
+# 练习代码
+aicrm/

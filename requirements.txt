@@ -1,4 +1,4 @@
-# XiaoZhi 语音问答 API — 依赖
+# XiaoZhi 语音问答 AICRM 系统 — 依赖
 # Python 3.10+
 
 # ---- 核心框架 ----
@@ -7,28 +7,26 @@ uvicorn>=0.20.0
 python-multipart>=0.0.5
 
 # ---- AI 引擎 ----
-funasr==1.2.7          # ASR 本地语音识别
-openai>=1.0.0          # LLM (DeepSeek/ChatGLM 兼容)
-edge_tts>=7.0.0        # TTS 免费备用
+funasr==1.2.7             # ASR 本地语音识别 (SenseVoiceSmall)
+openai>=1.0.0             # LLM (DeepSeek/ChatGLM 兼容)
+edge_tts>=7.0.0           # TTS 免费备用
+httpx>=0.24               # 异步 HTTP (LLM API 调用)
 
-# ---- 工具 & 工具函数 ----
-loguru>=0.7.0          # 日志
-pyyaml>=6.0            # YAML 配置解析
-jinja2>=3.0            # Prompt 模板渲染
-requests>=2.28         # HTTP 客户端
-httpx>=0.24            # 异步 HTTP
-numpy>=1.24            # 数值计算
-opuslib_next>=1.1      # Opus 音频解码
-pydub>=0.25            # 音频格式转换
-cnlunar>=0.2           # 农历计算
-beautifulsoup4>=4.12   # HTML 解析（新闻工具用）
-chardet>=5.0           # 编码检测
+# ---- 工具 ----
+loguru>=0.7.0             # 日志
+pyyaml>=6.0               # YAML 配置解析
+jinja2>=3.0               # Prompt 模板渲染
+requests>=2.28            # HTTP 客户端 (工具调用)
+beautifulsoup4>=4.12      # HTML 解析 (天气工具)
+cnlunar>=0.2              # 农历计算
+psutil>=5.9               # 系统资源检测 (ASR 内存检查)
+opuslib_next>=1.1         # Opus 音频解码
 
-# ---- LangChain (RAG 知识库检索) ----
+# ---- RAG 知识库 ----
 langchain>=0.3.0
 langchain-community>=0.3.0
 langchain-chroma>=0.2.0
 langchain-text-splitters>=0.3.0
 chromadb>=0.5.0
-dashscope>=1.20.0       # 阿里 DashScope (text-embedding-v4)
-pypdf>=5.0.0            # PDF 文档解析 (RAG 知识库)
+dashscope>=1.20.0          # 阿里 DashScope (text-embedding-v4)
+pypdf>=5.0.0               # PDF 文档解析
