@@ -159,11 +159,11 @@ selected_module:
 ```python
 class ASRProviderBase(ABC):
     @abstractmethod
-    async def speech_to_text(self, ...) -> Tuple[str, str]: ...
+    async def speech_to_text(self, audio_data, session_id, ...): ...
 
 class LLMProviderBase(ABC):
     def response(self, session_id, dialogue): ...         # 流式
-    def response_with_functions(self, ...): ...           # 带工具
+    def response_with_functions(self, ...): ...           # 带 function calling
 ```
 
 ---

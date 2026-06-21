@@ -12,7 +12,7 @@ from api.schemas import (
     CRMUserHistoryResponse,
     ErrorResponse,
 )
-from api.dependencies import get_crm, get_config
+from api.dependencies import get_crm
 
 router = APIRouter(prefix="/crm", tags=["CRM"])
 

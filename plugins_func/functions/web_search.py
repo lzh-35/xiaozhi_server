@@ -9,7 +9,7 @@ from plugins_func.register import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.connection import ConnectionHandler
+    from core.tool_handler import PipelineContext
 
 TAG = __name__
 logger = setup_logging()
@@ -113,7 +113,7 @@ def _search_tavily(api_key: str, query: str, max_results: int) -> str:
 
 
 @register_function("web_search", WEB_SEARCH_FUNCTION_DESC, ToolType.SYSTEM_CTL)
-def web_search(conn: "ConnectionHandler", query: str = None):
+def web_search(conn: "PipelineContext", query: str = None):
     logger.bind(tag=TAG).info(f"web_search 被调用 | query={query}")
     if not query:
         return ActionResponse(Action.REQLLM, "请提供搜索关键词。", None)

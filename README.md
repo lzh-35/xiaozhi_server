@@ -14,7 +14,8 @@ pip install -r requirements.txt
 cp data/config.example.yaml data/.config.yaml
 # 编辑 data/.config.yaml，填入 API key
 
-# 3. 下载 ASR 模型（可选，首次运行自动下载）
+# 3. 下载 ASR 模型（首次运行需要）
+# 从 modelscope 下载 SenseVoiceSmall 模型到 models/SenseVoiceSmall/
 mkdir -p models/SenseVoiceSmall
 
 # 4. 启动
@@ -105,7 +106,7 @@ xiaozhi_server/
 |------|------|
 | [CRM 说明文档](docs/crm-guide.md) | CRM 架构/API/数据库/画像提取 |
 | [项目说明文档](docs/project-summary.md) | 系统架构/技术栈/部署/数据流 |
-| [测试记录](docs/test-report.md) | 24 项测试用例及结果 |
+| [测试记录](docs/test-report.md) | 全接口测试用例及结果（21 项全部通过） |
 | [学习路线](docs/learning-guide.md) | 5 天从入门到掌握 |
 
 ## 特性

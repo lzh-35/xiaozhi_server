@@ -11,7 +11,6 @@ TAG = __name__
 
 
 # ───────────────────── Provider 工厂函数 ─────────────────────
-# 直接复用 core/utils 下的工厂方法，保持与原有 WebSocket 服务一致
 
 
 def _get_provider_type(config: dict, module_key: str) -> str:

@@ -194,11 +194,6 @@ class MemoryProvider(MemoryProviderBase):
                 self.save_memory_to_file()
             except Exception as e:
                 logger.bind(tag=TAG).error(f"Error in saving memory: {e}")
-        else:
-            # 当save_to_file为False时，调用Java端的聊天记录总结接口
-            summary_id = session_id if session_id else self.role_id
-            from config.manage_api_client import generate_and_save_chat_summary
-            await generate_and_save_chat_summary(summary_id)
         logger.bind(tag=TAG).info(
             f"Save memory successful - Role: {self.role_id}, Session: {session_id}"
         )

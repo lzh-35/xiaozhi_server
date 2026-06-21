@@ -7,7 +7,7 @@ from markitdown import MarkItDown
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.connection import ConnectionHandler
+    from core.tool_handler import PipelineContext
 
 
 TAG = __name__
@@ -110,7 +110,7 @@ GET_NEWS_FROM_NEWSNOW_FUNCTION_DESC = {
 }
 
 
-def fetch_news_from_api(conn: "ConnectionHandler", source="thepaper"):
+def fetch_news_from_api(conn: "PipelineContext", source="thepaper"):
     """从API获取新闻列表"""
     try:
         api_url = f"https://newsnow.busiyi.world/api/s?id={source}"
@@ -167,7 +167,7 @@ def fetch_news_detail(url):
     ToolType.SYSTEM_CTL,
 )
 def get_news_from_newsnow(
-    conn: "ConnectionHandler",
+    conn: "PipelineContext",
     source: str = "澎湃新闻",
     detail: bool = False,
     lang: str = "zh_CN",

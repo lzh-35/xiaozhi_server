@@ -5,7 +5,7 @@ from plugins_func.register import register_function, ToolType, ActionResponse, A
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.connection import ConnectionHandler
+    from core.tool_handler import PipelineContext
 
 TAG = __name__
 logger = setup_logging()
@@ -155,7 +155,7 @@ def parse_weather_info(soup):
 
 
 @register_function("get_weather", GET_WEATHER_FUNCTION_DESC, ToolType.SYSTEM_CTL)
-def get_weather(conn: "ConnectionHandler", location: str = None, lang: str = "zh_CN"):
+def get_weather(conn: "PipelineContext", location: str = None, lang: str = "zh_CN"):
     from core.utils.cache.manager import cache_manager, CacheType
 
     weather_config = conn.config.get("plugins", {}).get("get_weather", {})

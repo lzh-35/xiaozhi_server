@@ -1,10 +1,8 @@
 """
 简化工具处理器 — 专为 REST API 设计
 
-与 UnifiedToolHandler 的区别：
-- 不依赖 ConnectionHandler，使用轻量级 PipelineContext
-- 只处理服务端插件 (server plugins)，不含 IoT/MCP/设备端点
-- 插件函数通过 @register_function 自动注册
+- 使用轻量级 PipelineContext（替代旧的 ConnectionHandler）
+- 仅处理服务端插件，插件函数通过 @register_function 自动注册
 """
 
 import json
@@ -23,10 +21,9 @@ TAG = __name__
 
 
 class PipelineContext:
-    """轻量级上下文，替代 ConnectionHandler 供插件函数使用
+    """轻量级上下文，供插件函数使用
 
-    插件函数通常只需要 conn.config 和 conn.logger。
-    少数函数 (handle_exit_intent) 需要 conn.dialogue / conn.close_after_chat。
+    插件函数通过 self.context 访问 config、session_id、dialogue、logger。
     """
 
     def __init__(
