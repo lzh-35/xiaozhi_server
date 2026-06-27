@@ -32,7 +32,7 @@ CRM 管理接口：`/crm/users`、`/crm/knowledge` 等 6 个。
 ### 1.1 先跑起来
 
 ```bash
-cd /home/chen/projects/xiaozhi_server
+cd xiaozhi_server    # 进入项目目录（根据你的实际路径调整）
 python api_server.py
 ```
 
